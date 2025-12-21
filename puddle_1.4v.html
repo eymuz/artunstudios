@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Puddle Engine V1.4</title>
+
+  <!-- === KÜTÜPHANELER === -->
+  <script src="https://unpkg.com/blockly@10.1.2/blockly_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@10.1.2/blocks_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@10.1.2/javascript_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@10.1.2/msg/tr.js"></script>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+
+  <style>
+    .blocklyTreeLabel {
+  color: black !important;        /* Yazı rengini siyah yapar */
+  font-weight: bold;
+}
+.blocklyTreeRow {
+  background-color: #f0f0f0 !important; /* Açık gri arka plan */
+}
+.blocklyTreeSelected {
+  background-color: #cce5ff !important; /* Seçili olan kategori mavi */
+}
+    html, body { height: 100%; margin: 0; background: #1e1e2e; color: #eee; font-family: monospace; overflow: hidden; }
+    #toolbar { background: #282a36; padding: 10px; height: 40px; display:flex; justify-content:space-between; align-items:center; }
+    #blocklyDiv { position:absolute; top:40px; bottom:0; left:0; right:0; }
+    #renderCanvas { position:absolute; top:40px; left:0; right:0; bottom:0; display:none; width:100%; height:calc(100% - 40px); }
+    button { background:#50fa7b; border:none; color:#000; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <span>💧 Puddle Engine V1.4</span>
+    <div>
+      <button onclick="runCode()">▶ Çalıştır</button>
+      <button onclick="toggleView()">🔄 Görünüm</button>
+    </div>
+  </div>
+
+  <div id="blocklyDiv"></div>
+  <canvas id="renderCanvas"></canvas>
+
+  <!-- === TOOLBOX === -->
+  <xml id="toolbox" style="display:none">
+<category name="Mantıksal" colour="210">
+  <block type="if_else_block"></block>
+  <block type="logic_compare"></block>
+  <block type="lib_exists"></block>
+  <block type="sound_playing"></block>
+  <block type="connection_ok"></block>
+  <block type="glb_loaded"></block>
+  <block type="char_coord"></block>
+</category>
+    <category name="Ekstra" colour="300" expanded="true">
+  <block type="eval_block"></block>
+  <block type="js_kutuphane_yukle"></block>
+</category>
+<category name="Temel" colour="180" expanded="true">
+  <block type="text_value"></block>
+  <block type="number_value"></block>
+  <block type="boolean_value"></block>
+</category>
+    <category name="Olaylar" colour="30" expanded="true">
+      <block type="start_block"></block>
+      <block type="forever_block"></block>
+    </category>
+    <category name="Sahne" colour="230" expanded="true">
+      <block type="create_scene"></block>
+      <block type="camera_follow"></block>
+      <block type="create_light"></block>
+    </category>
+    <category name="Karakter" colour="120" expanded="true">
+      <block type="create_character"></block>
+      <block type="move_character"></block>
+      <block type="jump_character"></block>
+      <block type="speed_up"></block>
+      <block type="character_talk"></block>
+      <block type="load_glb"></block>
+    </category>
+    <category name="Objeler" colour="260" expanded="true">
+      <block type="create_object"></block>
+      <block type="move_object"></block>
+    </category>
+    <category name="Ses" colour="20" expanded="true">
+      <block type="play_sound"></block>
+      <block type="stop_sound"></block>
+    </category>
+    <category name="Ağ (WebSocket)" colour="330" expanded="true">
+      <block type="ws_connect"></block>
+      <block type="ws_send"></block>
+      <block type="ws_onmessage"></block>
+    </category>
+    <category name="Matematik" colour="200" expanded="true">
+      <block type="random_number"></block>
+      <block type="math_operation"></block>
+    </category>
+    <category name="Değişkenler" colour="60" expanded="true">
+      <block type="create_variable"></block>
+      <block type="set_variable"></block>
+      <block type="get_variable"></block>
+    </category>
+  </xml>
+
+  <script>
+    // === BLOK TANIMLARI ===
+    Blockly.defineBlocksWithJsonArray([
+  {
+    "type": "text_literal",
+    "message0": "\"%1\"",
+    "args0": [
+      {
+        "type": "field_input",
+        "name": "TEXT",
+        "text": ""
+      }
+    ],
+    "output": "String",
+    "colour": 160,
+    "tooltip": "Yazı değeri",
+    "helpUrl": ""
+  }
+,{ "type":"text_value", "message0":"metin %1", "args0":[{"type":"field_input","name":"TEXT","text":"merhaba"}], "output":"String", "colour":180 },
+{ "type":"number_value", "message0":"sayı %1", "args0":[{"type":"field_number","name":"NUM","value":0}], "output":"Number", "colour":180 },
+{ "type":"boolean_value", "message0":"%1", "args0":[{"type":"field_dropdown","name":"BOOL","options":[["doğru","true"],["yanlış","false"]]}], "output":"Boolean", "colour":180 },
+{ "type":"text_value", "message0":"metin %1", "args0":[{"type":"field_input","name":"TEXT","text":"merhaba"}], "output":"String", "colour":180 },
+{ "type":"number_value", "message0":"sayı %1", "args0":[{"type":"field_number","name":"NUM","value":0}], "output":"Number", "colour":180 },
+{ "type":"boolean_value", "message0":"%1", "args0":[{"type":"field_dropdown","name":"BOOL","options":[["doğru","true"],["yanlış","false"]]}], "output":"Boolean", "colour":180 },
+      { "type":"start_block","message0":"program başladığında","nextStatement":null,"colour":30,"hat":"cap" },
+      { "type":"forever_block","message0":"her zaman","nextStatement":null,"previousStatement":null,"colour":30 },
+      { "type":"create_scene","message0":"Babylon sahnesini başlat","previousStatement":null,"nextStatement":null,"colour":230 },
+      { "type":"camera_follow","message0":"kamerayı oyuncuya ayarla","previousStatement":null,"nextStatement":null,"colour":230 },
+      { "type":"create_light","message0":"ışık ekle","previousStatement":null,"nextStatement":null,"colour":230 },
+      { "type":"create_character","message0":"karakter oluştur","previousStatement":null,"nextStatement":null,"colour":120 },
+      { "type":"move_character","message0":"karakteri x %1 y %2 z %3 konumuna taşı","args0":[
+        {"type":"input_value","name":"X"},{"type":"input_value","name":"Y"},{"type":"input_value","name":"Z"}],
+        "previousStatement":null,"nextStatement":null,"colour":120 },
+      { "type":"jump_character","message0":"karakter zıplasın","previousStatement":null,"nextStatement":null,"colour":160 },
+      { "type":"speed_up","message0":"karakterin hızı artsın","previousStatement":null,"nextStatement":null,"colour":60 },
+      { "type":"character_talk","message0":"karakter konuşsun %1","args0":[{"type":"input_value","name":"TEXT"}],
+        "previousStatement":null,"nextStatement":null,"colour":100 },
+      { "type":"load_glb","message0":"karaktere glb modeli yükle %1","args0":[{"type":"input_value","name":"URL"}],
+        "previousStatement":null,"nextStatement":null,"colour":100 },
+      { "type":"create_object","message0":"obje oluştur (glb) %1 x %2 y %3 z %4","args0":[
+        {"type":"input_value","name":"URL"},{"type":"input_value","name":"X"},{"type":"input_value","name":"Y"},{"type":"input_value","name":"Z"}],
+        "previousStatement":null,"nextStatement":null,"colour":260 },
+      { "type":"move_object","message0":"objeyi hareket ettir x %1 y %2 z %3","args0":[
+        {"type":"input_value","name":"X"},{"type":"input_value","name":"Y"},{"type":"input_value","name":"Z"}],
+        "previousStatement":null,"nextStatement":null,"colour":260 },
+      { "type":"play_sound","message0":"mp3 çal %1","args0":[{"type":"input_value","name":"URL"}],
+        "previousStatement":null,"nextStatement":null,"colour":20 },
+      { "type":"stop_sound","message0":"mp3 durdur","previousStatement":null,"nextStatement":null,"colour":20 },
+      { "type":"ws_connect","message0":"WebSocket'e bağlan %1","args0":[{"type":"input_value","name":"URL"}],
+        "previousStatement":null,"nextStatement":null,"colour":330 },
+      { "type":"ws_send","message0":"mesaj gönder %1","args0":[{"type":"input_value","name":"TEXT"}],
+        "previousStatement":null,"nextStatement":null,"colour":330 },
+      { "type":"ws_onmessage","message0":"mesaj alındığında değişkene kaydet %1","args0":[{"type":"field_input","name":"VAR","text":"mesaj"}],
+        "previousStatement":null,"nextStatement":null,"colour":330 },
+      { "type":"random_number","message0":"rastgele sayı %1 ile %2 arasında","args0":[
+        {"type":"input_value","name":"MIN"},{"type":"input_value","name":"MAX"}],
+        "output":null,"colour":200 },
+      { "type":"math_operation","message0":"%1 %2 %3","args0":[
+        {"type":"input_value","name":"A"},{"type":"field_dropdown","name":"OP","options":[["+","+"],["-","-"],["*","*"],["/","/"]]},
+        {"type":"input_value","name":"B"}],
+        "output":null,"colour":200 },
+      { "type":"create_variable","message0":"değişken oluştur %1","args0":[{"type":"field_input","name":"VAR","text":"isim"}],
+        "previousStatement":null,"nextStatement":null,"colour":60 },
+      { "type":"set_variable","message0":"%1 değişkenine değer ata %2","args0":[
+        {"type":"field_input","name":"VAR","text":"isim"},{"type":"input_value","name":"VALUE"}],
+        "previousStatement":null,"nextStatement":null,"colour":60 },
+      { "type":"get_variable","message0":"%1 değişkenini al","args0":[{"type":"field_input","name":"VAR","text":"isim"}],
+        "output":null,"colour":60 },
+      {
+  "type": "eval_block",
+  "message0": "eval kodu %1",
+  "args0": [
+    { "type": "input_value", "name": "CODE", "check": "String" }
+  ],
+  "previousStatement": null,
+  "nextStatement": null,
+  "colour": 300,
+  "tooltip": "Girilen JavaScript kodunu çalıştırır (eval)."
+},
+//PAKET BASLANGIC IF
+{
+  "type": "if_else_block",
+  "message0": "eğer %1 ise %2 değilse %3",
+  "args0": [
+    { "type": "input_value", "name": "IF", "check": "Boolean" },
+    { "type": "input_statement", "name": "DO" },
+    { "type": "input_statement", "name": "ELSE" }
+  ],
+  "previousStatement": null,
+  "nextStatement": null,
+  "colour": 210,
+  "tooltip": "Koşul doğruysa ilk kısmı, değilse ikinci kısmı çalıştırır."
+},
+{
+  "type": "logic_compare",
+  "message0": "%1 %2 %3",
+  "args0": [
+    { "type": "input_value", "name": "A" },
+    {
+      "type": "field_dropdown",
+      "name": "OP",
+      "options": [
+        ["=", "EQ"], [">", "GT"], ["<", "LT"],
+        [">=", "GTE"], ["<=", "LTE"], ["≠", "NEQ"]
+      ]
+    },
+    { "type": "input_value", "name": "B" }
+  ],
+  "inputsInline": true,
+  "output": "Boolean",
+  "colour": 200,
+  "tooltip": "İki değeri karşılaştırır."
+},
+{
+  "type": "lib_exists",
+  "message0": "kütüphane %1 var ise",
+  "args0": [{ "type": "input_value", "name": "NAME", "check": "String" }],
+  "output": "Boolean",
+  "colour": 180,
+  "tooltip": "Belirtilen kütüphane yüklenmiş mi kontrol eder."
+},
+{
+  "type": "sound_playing",
+  "message0": "ses çalıyor ise",
+  "output": "Boolean",
+  "colour": 160,
+  "tooltip": "Herhangi bir ses çalıyor mu kontrol eder."
+},
+{
+  "type": "connection_ok",
+  "message0": "bağlantı kopuk değil ise",
+  "output": "Boolean",
+  "colour": 160,
+  "tooltip": "Tarayıcı çevrimdışı mı kontrol eder."
+},
+{
+  "type": "glb_loaded",
+  "message0": "GLB modeli karaktere yüklendi mi",
+  "output": "Boolean",
+  "colour": 160,
+  "tooltip": "Model yüklendi mi kontrol eder."
+},
+{
+  "type": "char_coord",
+  "message0": "karakter %1",
+  "args0": [
+    {
+      "type": "field_dropdown",
+      "name": "AXIS",
+      "options": [["X", "x"], ["Y", "y"], ["Z", "z"]]
+    }
+  ],
+  "output": null,
+  "colour": 190,
+  "tooltip": "Karakter konum ekseni değerini döndürür."
+}
+//PAKET SON IF
+    ]);
+Blockly.Blocks['js_kutuphane_yukle'] = {
+  init: function() {
+    this.appendValueInput("URL")
+        .setCheck("String")
+        .appendField("JS kütüphane yükle URL:");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("Verilen URL'den JavaScript kütüphanesi yükler.");
+  }
+};
+
+Blockly.JavaScript['eval_block'] = function(b) {
+  const code = Blockly.JavaScript.valueToCode(b, 'CODE', Blockly.JavaScript.ORDER_ATOMIC) || '""';
+  return 'eval(' + code + ');\n';
+};
+    // === GENERATORLAR ===
+Blockly.JavaScript['if_else_block'] = function(b) {
+  const condition = Blockly.JavaScript.valueToCode(b, 'IF', Blockly.JavaScript.ORDER_NONE) || 'false';
+  const doCode = Blockly.JavaScript.statementToCode(b, 'DO');
+  const elseCode = Blockly.JavaScript.statementToCode(b, 'ELSE');
+  return `if (${condition}) {\n${doCode}} else {\n${elseCode}}\n`;
+};
+
+Blockly.JavaScript['logic_compare'] = function(b) {
+  const opMap = {EQ: "==", GT: ">", LT: "<", GTE: ">=", LTE: "<=", NEQ: "!="};
+  const a = Blockly.JavaScript.valueToCode(b, 'A', Blockly.JavaScript.ORDER_NONE) || "0";
+  const bVal = Blockly.JavaScript.valueToCode(b, 'B', Blockly.JavaScript.ORDER_NONE) || "0";
+  const op = opMap[b.getFieldValue('OP')];
+  return [`(${a} ${op} ${bVal})`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+Blockly.JavaScript['lib_exists'] = function(b) {
+  const libName = Blockly.JavaScript.valueToCode(b, 'NAME', Blockly.JavaScript.ORDER_NONE) || "''";
+  return [`typeof window[${libName}] !== 'undefined'`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+Blockly.JavaScript['sound_playing'] = function() {
+  return [`(typeof Howler !== 'undefined' && Howler._howls.some(h=>!h._paused))`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+Blockly.JavaScript['connection_ok'] = function() {
+  return [`navigator.onLine`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+Blockly.JavaScript['glb_loaded'] = function() {
+  return [`(typeof model !== 'undefined' && model.isLoaded)`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+Blockly.JavaScript['char_coord'] = function(b) {
+  const axis = b.getFieldValue('AXIS');
+  return [`(typeof player !== 'undefined' ? player.position.${axis} : 0)`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+    Blockly.JavaScript['js_kutuphane_yukle'] = function(block) {
+  const url = Blockly.JavaScript.valueToCode(block, 'URL', Blockly.JavaScript.ORDER_ATOMIC) || "''";
+  return "var s=document.createElement('script');s.src=" + url + ";document.head.appendChild(s);\n";
+};
+
+    Blockly.JavaScript['eval_block'] = function(b) {
+  const code = Blockly.JavaScript.valueToCode(b, 'CODE', Blockly.JavaScript.ORDER_ATOMIC) || '""';
+  return 'eval(' + code + ');\n';
+};
+Blockly.JavaScript['text_literal'] = function(block) {
+  const text = block.getFieldValue('TEXT');
+  return [`"${text}"`, Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+Blockly.JavaScript.forBlock['play_sound'] = function(block) {
+  const url = Blockly.JavaScript.valueToCode(block, 'URL', 0) || '""';
+  return `
+  (() => {
+    const audio = new Audio(${url});
+    audio.volume = 1.0;
+    audio.play().catch(err => console.warn("Ses çalınamadı:", err));
+    window.sound = audio;
+  })();
+  `;
+};
+
+Blockly.JavaScript.forBlock['text_value'] = function(block) {
+  return ['"' + block.getFieldValue('TEXT') + '"', Blockly.JavaScript.ORDER_ATOMIC];
+};
+Blockly.JavaScript.forBlock['number_value'] = function(block) {
+  return [block.getFieldValue('NUM'), Blockly.JavaScript.ORDER_ATOMIC];
+};
+Blockly.JavaScript.forBlock['boolean_value'] = function(block) {
+  return [block.getFieldValue('BOOL'), Blockly.JavaScript.ORDER_ATOMIC];
+};
+
+    Blockly.JavaScript['start_block'] = block => Blockly.JavaScript.statementToCode(block,'');
+    Blockly.JavaScript['forever_block'] = block => `
+      setInterval(()=>{
+        ${Blockly.JavaScript.statementToCode(block,'')}
+      },50);
+    `;
+    Blockly.JavaScript['create_scene']=()=>`
+      const canvas=document.getElementById("renderCanvas");
+      canvas.style.display="block";
+      const engine=new BABYLON.Engine(canvas,true);
+      const scene=new BABYLON.Scene(engine);
+      const light=new BABYLON.HemisphericLight("light",new BABYLON.Vector3(0,1,0),scene);
+      const camera=new BABYLON.FollowCamera("cam",new BABYLON.Vector3(0,5,-10),scene);
+      camera.radius=10;
+      engine.runRenderLoop(()=>scene.render());
+      window.scene=scene;window.engine=engine;window.camera=camera;
+    `;
+    Blockly.JavaScript['camera_follow']=()=>`if(window.player)camera.lockedTarget=player;`;
+    Blockly.JavaScript['create_light']=()=>`new BABYLON.HemisphericLight("light2",new BABYLON.Vector3(0,1,0),scene);`;
+    Blockly.JavaScript['create_character']=()=>`
+      const player=BABYLON.MeshBuilder.CreateBox("player",{size:1},scene);
+      player.position.y=1;
+      camera.lockedTarget=player;
+      window.player=player;
+    `;
+    Blockly.JavaScript['move_character']=block=>`
+      player.position.set(${Blockly.JavaScript.valueToCode(block,'X',0)||0},
+                          ${Blockly.JavaScript.valueToCode(block,'Y',0)||0},
+                          ${Blockly.JavaScript.valueToCode(block,'Z',0)||0});
+    `;
+    Blockly.JavaScript['jump_character']=()=>`
+      if(!player.jumping){
+        player.jumping=true;
+        let y=player.position.y,t=0;
+        const jumpLoop=setInterval(()=>{
+          t+=0.1;
+          player.position.y=y+Math.sin(t)*2;
+          if(t>Math.PI){clearInterval(jumpLoop);player.position.y=y;player.jumping=false;}
+        },16);
+      }
+    `;
+    Blockly.JavaScript['speed_up']=()=>`if(!player.speed)player.speed=1;player.speed+=0.2;`;
+    Blockly.JavaScript['character_talk']=block=>`
+      const text=${Blockly.JavaScript.valueToCode(block,'TEXT',0)||'"..."'};
+      const gui=BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+      const rect=new BABYLON.GUI.Rectangle();rect.background="#222a";rect.color="#fff";rect.height="40px";rect.width="200px";gui.addControl(rect);
+      const lbl=new BABYLON.GUI.TextBlock();lbl.text=text;rect.addControl(lbl);
+      setTimeout(()=>rect.dispose(),2000);
+    `;
+    Blockly.JavaScript['load_glb']=block=>`
+      BABYLON.SceneLoader.ImportMesh("", "", ${Blockly.JavaScript.valueToCode(block,'URL',0)||'""'}, scene, (meshes)=>{player=meshes[0];camera.lockedTarget=player;});
+    `;
+    Blockly.JavaScript['create_object']=block=>`
+      BABYLON.SceneLoader.ImportMesh("", "", ${Blockly.JavaScript.valueToCode(block,'URL',0)||'""'}, scene, (m)=>{m[0].position.set(${Blockly.JavaScript.valueToCode(block,'X',0)||0},${Blockly.JavaScript.valueToCode(block,'Y',0)||0},${Blockly.JavaScript.valueToCode(block,'Z',0)||0});});
+    `;
+    Blockly.JavaScript['move_object']=block=>`
+      if(window.obj)m[0].position.addInPlace(new BABYLON.Vector3(${Blockly.JavaScript.valueToCode(block,'X',0)||0},${Blockly.JavaScript.valueToCode(block,'Y',0)||0},${Blockly.JavaScript.valueToCode(block,'Z',0)||0}));
+    `;
+    Blockly.JavaScript['play_sound']=block=>`
+      const s=new Audio(${Blockly.JavaScript.valueToCode(block,'URL',0)||'""'});s.loop=false;s.play();window.sound=s;
+    `;
+    Blockly.JavaScript['stop_sound']=()=>`if(window.sound)window.sound.pause();`;
+    Blockly.JavaScript['ws_connect']=block=>`
+      window.socket=new WebSocket(${Blockly.JavaScript.valueToCode(block,'URL',0)||'""'});
+      socket.onmessage=(e)=>{window.lastMessage=e.data;};
+    `;
+    Blockly.JavaScript['ws_send']=block=>`if(window.socket)socket.send(${Blockly.JavaScript.valueToCode(block,'TEXT',0)||'""'});`;
+    Blockly.JavaScript['ws_onmessage']=block=>`window.${block.getFieldValue('VAR')}=window.lastMessage||"";`;
+    Blockly.JavaScript['random_number']=block=>[`Math.floor(Math.random()*(${Blockly.JavaScript.valueToCode(block,'MAX',0)||10}-${Blockly.JavaScript.valueToCode(block,'MIN',0)||0}+1)+(${Blockly.JavaScript.valueToCode(block,'MIN',0)||0}))`,0];
+    Blockly.JavaScript['math_operation']=block=>[`(${Blockly.JavaScript.valueToCode(block,'A',0)||0}${block.getFieldValue('OP')}${Blockly.JavaScript.valueToCode(block,'B',0)||0})`,0];
+    Blockly.JavaScript['create_variable']=block=>`window.${block.getFieldValue('VAR')}=0;`;
+    Blockly.JavaScript['set_variable']=block=>`window.${block.getFieldValue('VAR')}=${Blockly.JavaScript.valueToCode(block,'VALUE',0)||0};`;
+    Blockly.JavaScript['get_variable']=block=>[`window.${block.getFieldValue('VAR')}`,0];
+
+    // === WORKSPACE ===
+    let workspace;
+    window.addEventListener('load',()=>{
+      workspace=Blockly.inject('blocklyDiv',{toolbox:document.getElementById('toolbox'),theme:Blockly.Themes.Dark,trashcan:true});
+      addDefaultBlocks();
+      setInterval(ensureEventBlocks,1000);
+    });
+
+
+    function addDefaultBlocks(){
+      const xmlText=`
+      <xml xmlns="https://developers.google.com/blockly/xml">
+        <block type="start_block" x="50" y="50">
+          <next>
+            <block type="create_scene">
+              <next>
+                <block type="create_character"></block>
+              </next>
+            </block>
+          </next>
+        </block>
+        <block type="forever_block" x="50" y="180"></block>
+      </xml>`;
+      const xml=Blockly.utils.xml.textToDom(xmlText);
+      Blockly.Xml.domToWorkspace(xml,workspace);
+    }
+    function ensureEventBlocks(){
+      const blocks=workspace.getAllBlocks(false).map(b=>b.type);
+      if(!blocks.includes('start_block')||!blocks.includes('forever_block'))addDefaultBlocks();
+    }
+
+    function runCode(){
+      const code=Blockly.JavaScript.workspaceToCode(workspace);
+      console.clear();console.log("Kod:\n"+code);
+      try{eval(code);toggleView(true);}catch(e){console.error(e);}
+    }
+    function toggleView(forceCanvas=false){
+      const b=document.getElementById('blocklyDiv');
+      const c=document.getElementById('renderCanvas');
+      if(forceCanvas||b.style.display!=="none"){b.style.display="none";c.style.display="block";}
+      else{b.style.display="block";c.style.display="none";}
+    }
+// === 🧱 Blockly IDE Yardımcıları ===
+
+// 📁 Projeyi Kaydet
+function saveProject() {
+  const xml = Blockly.Xml.workspaceToDom(workspace);
+  const xmlText = Blockly.Xml.domToPrettyText(xml);
+  const blob = new Blob([xmlText], { type: "text/xml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "blockly_proje.xml";
+  a.click();
+}
+if (typeof loadProject === "undefined") {
+  window.loadProject = function() {
+    console.warn("loadProject fonksiyonu mevcut değil, atlandı.");
+  };
+}
+function loadProject() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".xml";
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return alert("Dosya seçilmedi!");
+    const reader = new FileReader();
+    reader.onload = () => {
+      console.log("📂 Dosya okundu, içerik:", reader.result.slice(0, 200));
+
+      let xml;
+      try {
+        if (Blockly.Xml && Blockly.Xml.textToDom) {
+          xml = Blockly.Xml.textToDom(reader.result);
+          console.log("✅ textToDom (Blockly.Xml) kullanıldı.");
+        } else if (Blockly.utils && Blockly.utils.xml && Blockly.utils.xml.textToDom) {
+          xml = Blockly.utils.xml.textToDom(reader.result);
+          console.log("✅ textToDom (Blockly.utils.xml) kullanıldı.");
+        } else {
+          throw new Error("Blockly textToDom bulunamadı!");
+        }
+
+        workspace.clear();
+        Blockly.Xml.domToWorkspace(xml, workspace);
+        console.log("✅ Proje yüklendi.");
+        alert("✅ Proje başarıyla yüklendi!");
+      } catch (err) {
+        console.error("❌ Proje yükleme hatası:", err);
+        alert("❌ Hata: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// 📂 Kütüphaneyi İçeri Aktar
+function loadLibrary(force = false) {
+  alert("Bu fonksiyon kaydedildiğinde bozulduğu için kaldırılmıştır!")
+}
+
+// 🧠 Araç Çubuğu Butonlarını Oluştur
+const toolbar = document.getElementById("toolbar");
+if (toolbar) {
+  const btnSave = Object.assign(document.createElement("button"), { innerText: "💾 Kaydet", onclick: saveProject });
+  const btnLoad = Object.assign(document.createElement("button"), { innerText: "📂 İçe Aktar", onclick: loadProject });
+  const btnLib  = Object.assign(document.createElement("button"), { innerText: "📚 Kütüphane Ekle", onclick: loadLibrary });
+  toolbar.appendChild(btnLib);
+  toolbar.appendChild(btnSave);
+  toolbar.appendChild(btnLoad);
+}
+if (window.__logSystemLoaded) {
+  window.removeEventListener("keydown", window.__logHotkeyFunc);
+  if (window.logOverlay) window.logOverlay.remove();
+}
+
+window.__logSystemLoaded = true;
+let logVisible = false;
+let logOverlay = null;
+const logs = [];
+
+// CSS blink animasyonu (hata yanıp sönmesi)
+const style = document.createElement("style");
+style.textContent = `
+@keyframes blink {
+  0% { color: #f33; }
+  50% { color: orange; }
+  100% { color: #f33; }
+}`;
+document.head.appendChild(style);
+
+// log ekleme fonksiyonu
+function addLogToOverlay(text, color, blink=false) {
+  if (!logOverlay) return;
+  const line = document.createElement("div");
+  line.textContent = text;
+  line.style = `
+    color:${color};
+    font-family:monospace;
+    white-space:pre;
+    ${blink ? "animation:blink 0.3s infinite alternate;" : ""}
+  `;
+  logOverlay.appendChild(line);
+  logOverlay.appendChild(document.createElement("br"));
+  logOverlay.scrollTop = logOverlay.scrollHeight; // otomatik kaydır
+}
+
+// console.log (mavi)
+const oldLog = console.log;
+console.log = (...args) => {
+  const text = args.join(' ');
+  logs.push({text, color:"#3af"});
+  oldLog(...args);
+  if (logVisible) addLogToOverlay(text, "#3af");
+};
+
+// console.warn (kırmızı)
+const oldWarn = console.warn;
+console.warn = (...args) => {
+  const text = args.join(' ');
+  logs.push({text, color:"#f33"});
+  oldWarn(...args);
+  if (logVisible) addLogToOverlay(text, "#f33");
+};
+
+// console.error (kırmızı ↔ turuncu)
+const oldErr = console.error;
+console.error = (...args) => {
+  const text = args.join(' ');
+  logs.push({text, color:"#f33", blink:true});
+  oldErr(...args);
+  if (logVisible) addLogToOverlay(text, "#f33", true);
+};
+
+// console.clear (her şeyi sıfırla)
+const oldClear = console.clear;
+console.clear = (...args) => {
+  oldClear(...args);
+  logs.length = 0;
+  if (logOverlay) logOverlay.innerHTML = "";
+};
+
+// terminali aç/kapat (Alt+5)
+window.__logHotkeyFunc = (e) => {
+  if (e.altKey && e.key === "5") {
+    e.preventDefault();
+    if (!logVisible) {
+      // terminal aç
+      logOverlay = document.createElement("div");
+      logOverlay.style.cssText = `
+        position:fixed;inset:0;background:black;
+        font-size:14px;overflow-y:auto;
+        padding:10px;z-index:999999;
+      `;
+      document.body.appendChild(logOverlay);
+      // geçmiş logları yükle
+      logs.forEach(l => addLogToOverlay(l.text, l.color, l.blink));
+      logVisible = true;
+    } else {
+      // terminal kapat
+      logOverlay.remove();
+      logOverlay = null;
+      logVisible = false;
+    }
+  }
+};
+
+window.addEventListener("keydown", window.__logHotkeyFunc);
+  </script>
+</body>
+</html>
